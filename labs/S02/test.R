@@ -1,17 +1,11 @@
-#' @title Standardize
-#' @description Computes z-scores (scores in standard units)
-#' @param x numeric vector
-#' @param na.rm whether to remove missing values
-#' @return vector of standard scores
-#' @examples 
-#'  a <- runif(5)
-#'  z <- standardize(a)
-#'  mean(z)
-#'  sd(z)
-standardize <- function(x, na.rm = FALSE) {
-  z <- (x - mean(x, na.rm = na.rm)) / sd(x, na.rm = na.rm)
-  return(z)
-}
+library(testthat)
+
+# load the source code of the functions to be tested
+source('~/Documents/Github/stat-243/labs/S02/functions.R')
+
+# context with one test that groups expectations
+context('Tests for Standardize')
+
 
 test_that("standardize works with normal input", {
   x <- c(1, 2, 3)
@@ -31,13 +25,3 @@ test_that("standardize works with missing values", {
   expect_equal(standardize(y, na.rm = TRUE), z2)
   expect_type(standardize(y), 'double')
 })
-
-test_that("standardize handles logical vector", {
-  w <- c(TRUE, FALSE, TRUE)
-  z <- (w - mean(w)) / sd(w)
-  
-  expect_equal(standardize(w), z)
-  expect_length(standardize(w), length(w))
-  expect_type(standardize(w), 'double')
-})
-
