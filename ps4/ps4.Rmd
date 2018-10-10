@@ -1,0 +1,125 @@
+---
+title: 'Stat 243 - Problem Set #4'
+author: "Todd Faulkenberry"
+date: "10/7/2018"
+output: pdf_document
+---
+
+```{r setup, echo = FALSE, messages = FALSE}
+suppressMessages(library(tidyverse))
+suppressMessages(library(pryr))
+library(microbenchmark)
+```
+
+
+## Problem 1
+
+Here, make_container() is a closure, i.e. a function that contains its own environment. This allows us to access the local variables in that environment, even after the environment has finished executing the code and has otherwise closed. We see that in action here. Make_container() is a function that requires a numerical argument - if we run it without one, we get an error. When you do pass a number into make_container() and assign it to a value, that value returns a function where that contains an enclosing environment where information can be stored and accessed if we pass some data into that function. Those are two of the enclosing environments with which we deal.
+
+We see another enclosing environment in play when we assign nboot to 100 and bootmeans to make_container(nboot). Once we do this, if we run bootmeans() without any information, we just get a copy of make_container(). If we simply run bootmeans(nboot), we will get a number that is equal to nboot. We can now, however, iterate over bootmeans, allowing to store values (in this case, the mean of a bootstrapped samples) in each of those positions. So, once we iterate over bootmeans, calling bootmeans() will now display the means of each of those 100 bootstrapped samples. We can use bootmeans()[i] to access the value we want, and we now have those values stored in the aforementioned third enclosing environment, where the values are protected from future function calls. 
+
+This function "contains" data in the sense that the function stores n number of variables, which each variable representing a value from the function we ran when we iterate. So the function contains data in a very literal sense - those local variables (i.e. the means) are values by themselves but also variables connected to the function, and will continue to exist as long as the function itself exists. If the function is deleted, so are those values. Using object_size(), we can determine that bootmeans() takes up 8MB of space when n = 1000000.
+
+## Problem 2
+
+While looking for a way to approach this problem online, I found an excellent solution to the same basic problem on StackOverflow from a user named Flodel (discussion is here: https://stackoverflow.com/questions/20508658/sampling-repeatedly-with-different-probability-in-r):
+
+```{r}
+
+n <- 100000
+p <- 5
+
+tmp <- exp(matrix(rnorm(n*p), nrow = n, ncol = p))
+probs <- tmp / rowSums(tmp)
+smp <- rep(0, n)
+
+
+set.seed(1) 
+
+system.time(
+  for(i in seq_len(n))
+    smp[i] <- sample(p, 1, prob = probs[i, ])
+)
+
+f_runif <- function(Weight, y) {
+  x <- runif(nrow(Weight))
+  cumul.w <- Weight %*% upper.tri(diag(ncol(Weight)), diag = TRUE) /
+    rowSums(Weight)
+  i <- rowSums(x > cumul.w) + 1L
+  y[i]
+}
+
+system.time(f_runif(probs, smp))
+```
+
+In lieu of writing code for this particular solution -- I didn't think I could improve on this -- I looked into this well-designed function to understand what it's doing at each individual part. The function takes in two arguments, a matrix of probabilities where each row sums to one, and a list of numbers from which to randomly select. The function then has a handful of steps:
+
+1. the first variable created (x) is a matrix of random deviates from a uniform distribution between 0 and 1, with a row for each value we ultimately want to collect (so, in this case, x has five times the amount of rows that probs does.)
+2. Next, the function calculates the cumulative sum and turns the data into a matrix of 100000 rows where each row sums to 1. What's notable here is the use of matrix multiplication by a triangular matrix -- instead of using apply, this makes use of a vectorized function, which creates efficiency.
+3. The function then a rowSums comparing x and the rows from cumul.w, counting the number of times that X is bigger and ultimately giving a number between 0 and 4. The 1L is added for two reasons: To get the distribution between the wanted values of 1 and 5, and to ensure that we get an integer vector back instead of a float vector, which will cut down the memory usage and save time.
+
+## Problem 3
+
+Don't know how to do this! Going to come talk to you in Office Hours soon about questions like these.
+
+## Problem 4
+
+### Part A
+
+To test this code, I created a very simple list of vectors and changed one value in the first vector.
+
+```{r, eval = FALSE}
+test <- list(c(1,2,3), c(4,5,6), c(7,8,9))
+.Internal(inspect(test))
+
+test[[1]][[1]] <- 2
+.Internal(inspect(test))
+```
+
+![R Output for Part A.](~/Desktop/Part-A.png)
+
+As the above output shows, R can modify an element of a vector without changing the location of any of the elements. Both the list of vectors and the individual vectors themselves stay in the same place.
+
+### Part B
+
+Code:
+
+```{r, eval = FALSE}
+test <- list(c(1,2,3), c(4,5,6), c(7,8,9))
+.Internal(inspect(test))
+
+test_2 <- test
+test_2[[1]][[1]] <- 2
+.Internal(inspect(test_2))
+```
+
+Output:
+
+![R Output for Part B.](~/Desktop/Part-B.png)
+
+Here, when we make a copy of a list of vectors and change one element in a vector, we see some changes. The two vectors that weren't changed remain at the same location, but the modified vector has a new location, as does the copied list. Of course, the change only happens to the list of vectors after we change the initial vector - if we had just copied the list and not changed any individual element, that list of vectors would have the same location as the original list of vectors.
+
+### Part C
+
+Here is the code I ran directly into the R:
+
+```{r, eval = FALSE}
+test <- list(list(1,2,3), list(4,5,6), list(7,8,9))
+.Internal(inspect(test))
+
+test_2 <- test
+
+test_2[[2]][[4]] <- 7
+.Internal(inspect(test))
+```
+
+And here is the output:
+
+![R Output for Part C.](~/Desktop/Part-C.png)
+
+The results here are similar to the results for Part B. The two lists that were not touched remain at the same location in memory, but the original list does not. Neither does the entire list of lists - it has been moved to a new location. Within the modified list, however, all three elements that weren't changed have the same location. The only element with a new location is the element that was added. So, in total, the two lists share the exact same lists if they aren't changed and the elements of any changed list where the elements weren't changed. They do not share the first list overall, nor the entire list of lists.
+
+## Part D
+
+Here, using .Internal(inspect()) and object.size() in R reveal that, while object.size() says the the object is taking up 160MB, .Internal(inspect()) shows that both lists of large numbers are actually the same list located in the same memory. So, while object_size() counts the aggregate size of everything in a given object, it does not consider the memory location of the object, meaning it won't realize when an object has something repeated in the memory. This means object_size() can easily overstate the size of the file, and it should be used in conjunction with .Internal(inspect()), which can corroborate if no objects are repeated and thus if object_size() is accurate.
+
